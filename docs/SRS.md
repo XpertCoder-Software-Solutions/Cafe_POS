@@ -239,7 +239,7 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 
 ### 3.12 Audit Log
 
-- **FR-AU-01** تسجيل العمليات دي كحد أدنى (القائمة المرجعية في skill audit-log، D-24): `ORDER_ITEM_VOID`، `ORDER_VOID`، `DISCOUNT_APPLIED`، `ORDER_EDITED_AFTER_SEND`، `TABLE_TRANSFER`، `TABLE_MERGE`، `BILL_SPLIT`، `REFUND`، `RECEIPT_REPRINT`، `TICKET_REPRINT`، `CASH_DRAWER_OPEN`، `CASH_MOVEMENT`، `SHIFT_OPEN`، `SHIFT_CLOSE`، `PRICE_CHANGED`، `ITEM_OUT_OF_STOCK`، `SETTINGS_CHANGED`، `ROLE_CHANGED`، `USER_LOGIN`، `MANAGER_OVERRIDE`، `LOYALTY_REDEEM`، `LOYALTY_ADJUST`، `DEVICE_PAIRED`، `DEVICE_REVOKED`، `HUB_PROMOTED`، `HUB_DRAINED`، `CUSTOMER_PHONE_CHANGED`.
+- **FR-AU-01** تسجيل العمليات دي كحد أدنى (القائمة المرجعية في skill audit-log، D-24): `ORDER_ITEM_VOID`، `ORDER_VOID`، `DISCOUNT_APPLIED`، `ORDER_EDITED_AFTER_SEND`، `TABLE_TRANSFER`، `TABLE_MERGE`، `BILL_SPLIT`، `REFUND`، `RECEIPT_REPRINT`، `TICKET_REPRINT`، `CASH_DRAWER_OPEN`، `CASH_MOVEMENT`، `SHIFT_OPEN`، `SHIFT_CLOSE`، `PRICE_CHANGED`، `ITEM_OUT_OF_STOCK`، `SETTINGS_CHANGED`، `ROLE_CHANGED`، `USER_LOGIN`، `MANAGER_OVERRIDE`، `LOYALTY_REDEEM`، `LOYALTY_ADJUST`، `DEVICE_PAIRED`، `DEVICE_REVOKED`، `HUB_PROMOTED`، `HUB_DRAINED`، `RECOVERED_SHIFT_SETTLED`، `CUSTOMER_PHONE_CHANGED`.
 - **FR-AU-02** كل سجل يحمل: المستخدم، الموافق (`approved_by` لو فيه Manager Override)، الجهاز، الفرع، الوقت، القيمة قبل وبعد، السبب.
 - **FR-AU-03** السجل للقراءة فقط ولا يمكن حذفه من داخل النظام.
 
@@ -538,7 +538,10 @@ service_requests    id, tenant_id, table_id, type (WAITER|BILL), status,
 shifts              id, tenant_id, branch_id, device_id,
                     kind (NORMAL|RECOVERED), opened_by,                 -- D-31
                     opening_cash, closed_by, counted_cash, expected_cash,
-                    difference, opened_at, closed_at
+                    difference, opened_at, closed_at,
+                    settlement_status (NEEDS_SETTLEMENT|SETTLED, للمستردة بس),
+                    settled_cash, settled_by, settled_at, settlement_reason
+                    -- RECOVERED: السيستم بيفتحها ويقفلها، opened_by وopening_cash وcounted_cash فاضيين (D-31)
 cash_movements      id, tenant_id, shift_id, type, amount, reason, user_id
 print_jobs          id, tenant_id, branch_id, order_id, printer_id, kind,
                     payload_ref, status, attempts, acked_at,
@@ -636,7 +639,11 @@ Active ──(ends_at)──► Grace ──(ends_at + grace_days)──► Rest
 4. السحابة بتلغي الـ Hub القديم فورًا، والجهاز الجديد بياخد `hub_epoch` جديد، ويسحب آخر حالة، ويكمل الترقيم من آخر رقم السحابة عارفاه في نفس الـ `business_date` + 500. بيتسجل `HUB_PROMOTED` في الـ Audit.
 5. الـ Hub القديم مايقدرش يستقبل أوامر جديدة من الأجهزة بعد الترقية. أول ما يتصل بالسحابة بيعرف إنه اتلغى، وبيدخل وضع **تصريف (drain)** فورًا: يرفض أي أمر جديد، ويرفع الأحداث المتبقية في الـ outbox، وبعدين يطلب re-pair. الـ outbox بتاعه مابيتلغيش.
 6. السحابة **ماترفضش أبدًا** حدث جاي من epoch قديم، لأنه حقيقة حصلت فعلًا (أكل اتقدّم وفلوس اتدفعت). الحدث بيتقبل ويتطبق عادي (idempotent بالـ event id). لو حصل بعد وقت الترقية، الأوردر بيتعلّم `recovered_from_drain = true`.
-7. إيرادات ومدفوعات الأحداث دي بتدخل التقارير، وبتتنسب لوردية الـ Hub القديم، أو لوردية "مستردة" (`shifts.kind = RECOVERED`) لو مالهاش وردية مفتوحة.
+7. إيرادات ومدفوعات الأحداث دي بتدخل التقارير، وبتتنسب لوردية الـ Hub القديم، أو لوردية "مستردة" (`shifts.kind = RECOVERED`) لو مالهاش وردية مفتوحة. قواعد الوردية المستردة:
+   - السيستم هو اللي بيفتحها ويقفلها لوحده، ومابتتفتحش من أي جهاز.
+   - مالهاش رصيد افتتاحي ولا جرد كاش، ومابتأثرش على الكاش المتوقع في أي وردية عادية.
+   - بتظهر عند المدير بحالة "محتاجة تسوية". المدير بيدخل الكاش اللي استلمه فعلًا ويكتب سبب (إجباري)، والفرق بين المستلم والمتوقع منها (مدفوعات الكاش ناقص المرتجعات الكاش اللي جواها) بيتسجل في الـ Audit (`RECOVERED_SHIFT_SETTLED`)، والحالة بتبقى "اتسوّت".
+   - التقارير بتعرضها في سطر منفصل باسم "مستردة".
 8. الأوردرات المستردة بتظهر في لوحة الإدارة في قايمة "أوردرات مستردة من Hub متوقف" علشان المدير يراجعها ويقفل المفتوح منها، وبيتسجل `HUB_DRAINED` في الـ Audit. القايمة بتعرض الجهاز جنب رقم الأوردر، لأن الرقم اليومي ممكن يتكرر بين الـ Hub القديم والجديد، وده مش مشكلة لأن القيد على `(hub_device_id, business_date, daily_number)`.
 9. اختبار إجباري: Hub اتقطع عن النت، واتعمل Hub تاني بدله، والقديم سجّل 10 أوردرات وهو مقطوع، وبعدين النت رجع ← الـ 10 أوردرات موجودين ومتعلّمين، ومفيش أي فلوس ناقصة في التقارير.
 
