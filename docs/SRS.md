@@ -2,6 +2,8 @@
 
 Nov 3, 2026 · @Amr Deraz
 
+> القرارات المعمارية في `docs/DECISIONS.md` (D-01 → D-38) هي المرجع لو حصل تعارض. الملف ده اتحدّث عليها؛ رقم القرار مكتوب جنب كل تعديل.
+
 ## 1. المقدمة
 
 المنتج نظام نقاط بيع (POS) سحابي متعدد المستأجرين (Multi-tenant SaaS) للكافيهات والمطاعم، يدعم Dine-in وTakeaway وDelivery وطلب العميل بالـ QR، ويكمل شغله بالكامل لو النت قطع ثم يعمل Sync لما يرجع.
@@ -16,7 +18,7 @@ Nov 3, 2026 · @Amr Deraz
 
 **داخل النطاق:** إدارة الاشتراكات والإضافات، المنيو والـ Modifiers، الترابيزات، الأوردرات بأنواعها، QR Ordering، الطباعة على طابعات حرارية، الوردية وقفل الدرج، التقارير، Audit log، العمل بدون إنترنت، وبرنامج الولاء.
 
-**خارج النطاق (حاليًا):** شاشة مطبخ (KDS)، المخزون والمشتريات بالتفصيل، تطبيق موبايل للعملاء، بوابات الدفع الإلكتروني للعميل النهائي.
+**خارج النطاق (حاليًا):** شاشة مطبخ (KDS)، المخزون والمشتريات بالتفصيل، تطبيق موبايل للعملاء، بوابات الدفع الإلكتروني للعميل النهائي، البقشيش (Tips) (D-14)، والفاتورة والإيصال الإلكتروني الحكومي (D-16).
 
 ### 1.3 المصطلحات
 
@@ -55,15 +57,18 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 
 | البند | النوع | ملاحظات |
 | --- | --- | --- |
-| فرع واحد + Dine-in + Takeaway + كاشير واحد + 2 كابتن | باقة أساسية | فترة اشتراك مستقلة |
-| فرع إضافي | Add-on (بالكمية) | كل فرع له فترة خاصة |
+| فرع واحد (أساسي `is_primary`) + Dine-in + Takeaway + كاشير واحد (هو الـ Hub) + 2 كابتن | باقة أساسية | فترة اشتراك مستقلة |
+| فرع إضافي `EXTRA_BRANCH` | Add-on (سجل لكل فرع) | كل فرع له سجل وفترة خاصة، وسعره بيشمل 1 كاشير + 2 كابتن (D-18، D-32) |
 | Delivery | Add-on | مناطق، رسوم، طيارين |
 | QR Ordering | Add-on | منيو وطلب ونداءات |
-| أجهزة إضافية (تابلت كابتن أو كاشير) | Add-on (بالكمية) | يتحكم في عدد الـ Devices |
+| كاشير إضافي `EXTRA_CASHIER` | Add-on (سجل لكل جهاز) | مربوط بفرع معيّن، والجهاز اللي شاغل الخانة (D-18، D-19، D-32) |
+| كابتن إضافي `EXTRA_CAPTAIN` | Add-on (سجل لكل جهاز) | مربوط بفرع معيّن، والجهاز اللي شاغل الخانة (D-18، D-19، D-32) |
 | برنامج الولاء | Add-on | نقاط وكسب واستبدال على مستوى البراند |
 | تقارير متقدمة | Add-on | — |
 
 - كل Add-on سجل مستقل بتاريخ بداية ونهاية وكمية ومدة سماح خاصة به.
+- الفروع والأجهزة الإضافية: كل وحدة سجل مستقل بـ `quantity = 1`، مربوط بالفرع أو الجهاز عن طريق `target_type` و`target_id`. لما السجل يتقيد، اللي بيتقيد هو الفرع أو الجهاز المربوط بيه بالظبط (D-18).
+- حد الأجهزة بيتحسب حسب النوع ولكل فرع: كل فرع (الأساسي وكل فرع إضافي) فيه 1 `CASHIER` (والـ Hub بيتحسب هو الكاشير ده) و2 `CAPTAIN`، وفوقهم سجلات `EXTRA_CASHIER` و`EXTRA_CAPTAIN` المربوطة بالفرع ده (D-19، D-32). سجل الجهاز الإضافي فيه `branch_id` للفرع و`target_id` للجهاز اللي شاغل الخانة، فتقييده بيقيد الجهاز ده بالظبط.
 - يمكن شراء الإضافة لمدة مختلفة عن الاشتراك الأساسي (مثلًا شهر أو 3 شهور).
 - الأسعار والمدد يحددها الـ Owner من لوحة المنصة، ولا تكون hardcoded.
 
@@ -73,6 +78,7 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 - يمكن عمل Override لعميل معين أو لإضافة معينة (مثلًا 15 يومًا).
 - أثناء السماح تعمل الخدمة بشكل طبيعي، ويظهر بانر تحذيري عند الإدارة والكاشير مع عدّاد للأيام المتبقية.
 - إشعارات قبل الانتهاء بـ 7 أيام و3 أيام ويوم واحد، وعند دخول السماح وعند التقييد.
+- قنوات الـ MVP: إشعار داخل التطبيق (بانر + مركز إشعارات في لوحة الإدارة ولوحة المنصة)، وإيميل لـ Tenant Admin ولصاحب المنصة. الإرسال كله من interface واحد `Notifier`، علشان واتساب أو SMS يتضافوا بعدين من غير تغيير (D-22).
 
 ### 2.4 التقييد التلقائي
 
@@ -81,7 +87,14 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 - التقييد يعني منع إنشاء أوردرات جديدة على الخدمة المقيدة فقط.
 - البيانات والتقارير السابقة تبقى متاحة للقراءة، ولا يُحذف أي شيء.
 - الأوردرات المفتوحة وقت التقييد يمكن استكمالها وتحصيلها وقفلها، ولا تُقطع الوردية، ولكن لا يمكن فتح أو إضافة أوردرات جديدة.
+- الجولة الجديدة على ترابيزة مفتوحة تُعتبر إضافة أوردر، فهي **مرفوضة**. المسموح على المفتوح: الدفع، التقسيم، النقل، الدمج، إلغاء صنف، القفل، وإعادة الطباعة (D-17).
+- التقييد يخص الخدمة المتقيدة بس (تقييد الدليفري لا يوقف الصالة). تقييد **الباقة الأساسية** يوقف كل أنواع الأوردرات الجديدة. تقييد سجل فرع إضافي يوقف الأوردرات الجديدة في الفرع ده بس (D-17، D-18).
 - التجديد يعيد الخدمة Active فورًا.
+
+**إيقاف الـ Tenant (Suspend)** إجراء يدوي من صاحب المنصة، ومختلف عن التقييد (D-22):
+- بيقفل كل حاجة فورًا ومن غير فترة سماح، ولا يمكن قفل الأوردرات المفتوحة من الأجهزة.
+- الـ Tenant Admin يقدر يدخل لوحة الإدارة قراءة بس، علشان التقارير والتصدير.
+- رخصة الـ Hub بتتلغي مع أول Sync.
 
 ### 2.5 تحكم المطعم في الخدمات
 
@@ -91,6 +104,11 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 ### 2.6 قاعدة التحقق الموحدة
 
 كل فحص صلاحية يمر عبر دالة واحدة `can(tenant, branch, feature)`، ونتيجتها مخزنة في Redis وتُمسح عند أي تغيير في الاشتراك أو التفعيل. يُمنع أي فحص مباشر لنوع الباقة في الكود.
+
+أكواد الخدمات والإضافات enum واحد في `packages/types` (D-20):
+
+- `FeatureCode`: `DINE_IN, TAKEAWAY, DELIVERY, QR_ORDERING, LOYALTY, ADVANCED_REPORTS`
+- `AddonCode`: `EXTRA_BRANCH, EXTRA_CASHIER, EXTRA_CAPTAIN, DELIVERY, QR_ORDERING, LOYALTY, ADVANCED_REPORTS`
 
 ```
 متاحة = ممنوحة AND (سارية OR داخل السماح) AND مفعّلة من المطعم
@@ -104,11 +122,11 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 
 ### 3.1 لوحة المنصة (Platform Owner)
 
-- **FR-PL-01** إضافة وتعديل وإيقاف Tenant.
+- **FR-PL-01** إضافة وتعديل وإيقاف Tenant. الإيقاف (Suspend) إجراء يدوي بيقفل كل حاجة فورًا، ويسيب لوحة الإدارة قراءة بس (تفاصيله في 2.4، D-22).
 - **FR-PL-02** إدارة كتالوج الباقات والإضافات (السعر، المدة، الكمية).
 - **FR-PL-03** منح أو سحب باقة أو إضافة لعميل بتواريخ محددة.
 - **FR-PL-04** ضبط مدة السماح الافتراضية، وعمل Override لكل عميل أو إضافة.
-- **FR-PL-05** ضبط أقصى مدة Offline مسموحة (افتراضي 72 ساعة).
+- **FR-PL-05** ضبط أقصى مدة Offline مسموحة (افتراضي 72 ساعة على مستوى المنصة)، مع Override لكل Tenant (D-21).
 - **FR-PL-06** لوحة متابعة: العملاء النشطون، المنتهية قريبًا، داخل السماح، المقيدون، الأجهزة غير المتصلة.
 - **FR-PL-07** سجل بكل عمليات المنح والتجديد والتقييد.
 - **FR-PL-08** تحصيل الاشتراكات يدويًا: تسجيل الدفعة (المبلغ، الطريقة، المرجع، التاريخ) ثم تجديد الباقة أو الإضافة من نفس الشاشة، مع سجل مدفوعات لكل عميل.
@@ -116,17 +134,20 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 ### 3.2 الهوية والإعدادات (Tenant)
 
 - **FR-BR-01** رفع اللوجو واختيار اللون الأساسي والثانوي. تنعكس على الكاشير والتابلت ومنيو الـ QR والإيصالات وPDF الـ QR.
-- **FR-BR-02** إعدادات كل فرع: نسبة الخدمة، نسبة الضريبة، أنواع الأوردرات التي تطبق عليها الخدمة، هل الضريبة على الخدمة، رسوم الدليفري.
-- **FR-BR-03** ترتيب الحساب قابل للضبط لكل فرع (مثال: Subtotal ← خصم ← خدمة ← ضريبة ← دليفري).
+- **FR-BR-02** إعدادات كل فرع: نسبة الخدمة، نسبة الضريبة، أنواع الأوردرات التي تطبق عليها الخدمة، هل الضريبة على الخدمة، هل الضريبة على الدليفري `tax_on_delivery` (الافتراضي لا، D-11)، رسوم الدليفري. رسوم الدليفري لا تُحسب عليها خدمة أبدًا.
+- **FR-BR-03** ترتيب الحساب قابل للضبط لكل فرع. الافتراضي: Subtotal ← خصم ← خصم الولاء ← خدمة ← ضريبة ← دليفري (`SUBTOTAL → DISCOUNT → LOYALTY → SERVICE → TAX → DELIVERY`، D-11). لو `tax_on_delivery` مفعّل، خطوة `DELIVERY` لازم تيجي قبل `TAX`: الـ validation بيرفض غير كده، وشاشة الإعدادات بتعدّل الترتيب تلقائيًا وبتعرض رسالة توضح السبب (D-36).
+- **FR-BR-06** إعدادات الوقت لكل فرع: `timezone` (الافتراضي `Africa/Cairo`) و`business_day_start` (الافتراضي `06:00`). أي أوردر قبل بداية اليوم يتحسب على يوم التشغيل اللي قبله (D-04).
+- **FR-BR-07** لغة تيكت المطبخ `kitchen_ticket_language` ولغة الإيصال `receipt_language` لكل فرع: `ar` أو `en` أو `both`، والافتراضي `ar` (D-27).
 - **FR-BR-04** بيانات الإيصال: الاسم، العنوان، الرقم الضريبي، رسالة أسفل الإيصال.
 - **FR-BR-05** فتح وقفل الخدمات الممنوحة على مستوى البراند أو الفرع.
+- **FR-BR-08** عملة الـ Tenant: `currency_code` (الافتراضي `EGP`) و`currency_minor_digits` (الافتراضي 2). كل المبالغ بأصغر وحدة للعملة (D-15).
 
 ### 3.3 المنيو
 
 - **FR-MN-01** أقسام وأصناف بصورة ووصف وسعر.
 - **FR-MN-02** مجموعات Modifiers (حجم، سكر، إضافات بسعر، بدون مكوّن) مع حد أدنى وأقصى للاختيار، وإجبارية أو اختيارية.
 - **FR-MN-03** سعر مختلف أو إخفاء صنف في فرع معين.
-- **FR-MN-04** زر Out of Stock من الكاشير أو التابلت، فيختفي الصنف فورًا من التابلت ومنيو الـ QR في هذا الفرع.
+- **FR-MN-04** زر Out of Stock من الكاشير أو التابلت، فيختفي الصنف فورًا من التابلت ومنيو الـ QR في هذا الفرع. الإتاحة اليومية مرجعها الـ Hub وبتشتغل أوفلاين؛ تغييرها من لوحة الإدارة بيوصل للـ Hub كأمر (D-05).
 - **FR-MN-05** ربط كل قسم بطابعة (Printer Routing).
 - **FR-MN-06** استثناء صنف أو قسم من كسب نقاط الولاء.
 - **FR-MN-07** إتاحة الصنف حسب نوع الأوردر (مثلًا صنف للصالة فقط).
@@ -140,7 +161,10 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 - **FR-DI-05** الإلغاء (Void) بصلاحية وسبب إلزامي، ويطبع تيكت "إلغاء" في المطبخ أو البار المعني.
 - **FR-DI-06** نقل أوردر أو ترابيزة كاملة لترابيزة أخرى.
 - **FR-DI-07** دمج ترابيزتين في شيك واحد.
-- **FR-DI-08** تقسيم الشيك: بالتساوي، أو بالأصناف، أو بمبلغ.
+- **FR-DI-08** تقسيم الشيك، 3 أنواع (D-12):
+  1. **بالأصناف:** الأصناف تتنقل لشيك جديد (order جديد في نفس الـ Table Session)، وكل شيك يتحسب لوحده بنفس الـ snapshot. الخصم اليدوي على مستوى الأوردر يتوزع على الشيكات بنسبة الـ subtotal (largest remainder). **مش مسموح** والشيك عليه استبدال نقاط: الكاشير يلغي الاستبدال الأول، ويقسّم، وبعدين يستبدل على الشيك اللي عايزه (D-35).
+  2. **بالتساوي:** شيك واحد، والإجمالي يتقسم على N حصة دفع، والوحدات الزيادة على أول الحصص.
+  3. **بمبلغ:** شيك واحد بأكتر من دفعة جزئية لحد ما المجموع يساوي الإجمالي.
 - **FR-DI-09** طباعة شيك مبدئي قبل الدفع.
 
 ### 3.5 Takeaway
@@ -186,26 +210,27 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 ### 3.9 الكاشير والوردية
 
 - **FR-CS-01** شاشة كاشير لكل الأوردرات المفتوحة حسب النوع.
-- **FR-CS-02** طرق دفع: كاش، كارت، محفظة، ودفع مقسّم بين أكثر من طريقة.
+- **FR-CS-02** طرق دفع: كاش، كارت، محفظة، ودفع مقسّم بين أكثر من طريقة. الكارت والمحفظة لا يتعدّوا الباقي المطلوب؛ الكاش بس اللي بيطلع باقي (D-14).
 - **FR-CS-03** خصومات بنسبة أو مبلغ بصلاحية وسبب.
 - **FR-CS-04** فتح وردية برصيد افتتاحي.
 - **FR-CS-05** حركات نقدية أثناء الوردية (مصروف، إيداع، سحب) بسبب.
 - **FR-CS-06** قفل الوردية بجرد فعلي للكاش وحساب العجز أو الزيادة.
 - **FR-CS-07** تقرير Z يطبع عند القفل: المبيعات حسب النوع وطريقة الدفع، الخصومات، الإلغاءات، الخدمة، الضريبة، العجز والزيادة.
 - **FR-CS-08** إعادة طباعة أي إيصال، وتُسجل في الـ Audit log.
+- **FR-CS-09** المرتجع لأوردر مقفول، كامل أو بالأصناف (D-14): بصلاحية Branch Manager وسبب إجباري، يطبع إيصال مرتجع، يعكس نقاط الولاء، ويتسجل في الـ Audit log. المدير بيختار طرق الاسترجاع وبيوزّع المبلغ عليها، وكل طريقة ماتعدّيش اللي اتدفع بيها في الأوردر الأصلي (ناقص اللي اترجع قبل كده). الافتراضي نفس توزيع الدفع الأصلي بالنسبة (largest remainder). المرتجع بيتحسب على الوردية و`business_date` بتوعه هو، ومربوط بالأوردر الأصلي (D-33).
 
 ### 3.10 الطباعة
 
-- **FR-PR-01** تعريف الطابعات لكل فرع: الاسم، الاتصال (شبكة، USB، مدمجة، Bluetooth)، عرض الورق 58 أو 80 مم، عدد النسخ، الـ Print Station.
+- **FR-PR-01** تعريف الطابعات لكل فرع: الاسم، الاتصال (شبكة، USB، مدمجة، Bluetooth — المدمجة والـ Bluetooth في المرحلة 2 مع الأندرويد، D-26)، عرض الورق 58 أو 80 مم، عدد النسخ، الـ Print Station، وهل بتدعم فحص الحالة.
 - **FR-PR-02** توجيه أصناف الأوردر الواحد لطابعات مختلفة حسب القسم.
 - **FR-PR-03** الإيصال يُرسم كصورة (Raster) من قالب HTML، لضمان العربي واللوجو على أي طابعة.
-- **FR-PR-04** كل طباعة Print Job بحالة وإعادة محاولة وتأكيد استلام (ACK).
+- **FR-PR-04** كل طباعة Print Job بحالة وإعادة محاولة وتأكيد استلام (ACK). الـ Job يبقى `acked` لما البيانات تتكتب كلها للطابعة من غير error، ولو الطابعة بتدعم فحص الحالة (DLE EOT) يتعمل فحص قبل وبعد: مفيش paper-out، الغطا مقفول، ومفيش error. الطابعة اللي مش بتدعم الفحص بتتعلّم "بدون فحص حالة" في الإعدادات (D-25).
 - **FR-PR-05** تنبيه عند فشل الطباعة، وزر إعادة الطباعة.
-- **FR-PR-06** أنواع التيكتات: أوردر جديد، إضافة، تعديل، إلغاء، شيك مبدئي، إيصال نهائي، دليفري، تقرير Z.
+- **FR-PR-06** أنواع التيكتات: أوردر جديد، إضافة، تعديل، إلغاء، شيك مبدئي، إيصال نهائي، إيصال مرتجع، دليفري، تقرير Z. لغة التيكت حسب إعداد الفرع (FR-BR-07).
 
 ### 3.11 التقارير
 
-- **FR-RP-01** مبيعات يومية وشهرية حسب الفرع والنوع وطريقة الدفع.
+- **FR-RP-01** مبيعات يومية وشهرية (بالـ `business_date`) حسب الفرع والنوع وطريقة الدفع، بتعرض: الإجمالي، والمرتجعات، والصافي (D-33).
 - **FR-RP-02** الأصناف الأكثر والأقل مبيعًا.
 - **FR-RP-03** أداء الكباتن والكاشيرات.
 - **FR-RP-04** تقرير الإلغاءات والخصومات بالموظف والسبب.
@@ -214,8 +239,8 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 
 ### 3.12 Audit Log
 
-- **FR-AU-01** تسجيل: الإلغاء، الخصم، تعديل أوردر بعد الإرسال، نقل ودمج وتقسيم، إعادة طباعة، فتح الدرج، تعديل الأسعار، تغيير الإعدادات، الدخول.
-- **FR-AU-02** كل سجل يحمل: المستخدم، الجهاز، الفرع، الوقت، القيمة قبل وبعد، السبب.
+- **FR-AU-01** تسجيل العمليات دي كحد أدنى (القائمة المرجعية في skill audit-log، D-24): `ORDER_ITEM_VOID`، `ORDER_VOID`، `DISCOUNT_APPLIED`، `ORDER_EDITED_AFTER_SEND`، `TABLE_TRANSFER`، `TABLE_MERGE`، `BILL_SPLIT`، `REFUND`، `RECEIPT_REPRINT`، `TICKET_REPRINT`، `CASH_DRAWER_OPEN`، `CASH_MOVEMENT`، `SHIFT_OPEN`، `SHIFT_CLOSE`، `PRICE_CHANGED`، `ITEM_OUT_OF_STOCK`، `SETTINGS_CHANGED`، `ROLE_CHANGED`، `USER_LOGIN`، `MANAGER_OVERRIDE`، `LOYALTY_REDEEM`، `LOYALTY_ADJUST`، `DEVICE_PAIRED`، `DEVICE_REVOKED`، `HUB_PROMOTED`، `HUB_DRAINED`، `RECOVERED_SHIFT_SETTLED`، `CUSTOMER_PHONE_CHANGED`.
+- **FR-AU-02** كل سجل يحمل: المستخدم، الموافق (`approved_by` لو فيه Manager Override)، الجهاز، الفرع، الوقت، القيمة قبل وبعد، السبب.
 - **FR-AU-03** السجل للقراءة فقط ولا يمكن حذفه من داخل النظام.
 
 ### 3.13 برنامج الولاء (Add-on)
@@ -223,12 +248,13 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 - **FR-LY-01** الـ Tenant Admin يضبط البرنامج: نقاط لكل مبلغ (مثلًا نقطة لكل 10 جنيه)، قيمة النقطة عند الاستبدال، حد أدنى للاستبدال، ومدة صلاحية النقاط.
 - **FR-LY-02** تحديد أساس الكسب كإعداد: الصافي بعد الخصم، أو الإجمالي شامل الخدمة والضريبة.
 - **FR-LY-03** تعريف العميل برقم التليفون من الكاشير أو الكابتن أو منيو الـ QR، وإنشاء حساب له تلقائيًا أول مرة.
-- **FR-LY-04** كسب النقاط تلقائيًا عند تحصيل الشيك وقفله، وخصمها تلقائيًا لو اتعمل إلغاء أو مرتجع.
+- **FR-LY-04** كسب النقاط تلقائيًا عند تحصيل الشيك وقفله، على المبلغ بعد الخصم اليدوي وخصم الولاء (D-11)، وخصمها تلقائيًا لو اتعمل إلغاء أو مرتجع.
 - **FR-LY-05** استبدال النقاط كخصم على الشيك من الكاشير، ويُسجل في الـ Audit log.
-- **FR-LY-06** الرصيد واحد لكل العميل على مستوى البراند، ويُستخدم في كل الفروع.
+- **FR-LY-06** الرصيد واحد لكل العميل على مستوى البراند، ويُستخدم في كل الفروع. السحابة بس اللي بتحسب الرصيد من `loyalty_transactions`، والـ Hub بياخده قيمة للقراءة بس (D-06).
 - **FR-LY-07** مستويات اختيارية (مثلًا فضي وذهبي) بنسبة كسب أعلى حسب إجمالي الإنفاق.
 - **FR-LY-08** العميل يرى رصيده في منيو الـ QR بعد إدخال رقمه.
 - **FR-LY-09** وضع الـ Offline: الكسب يُسجل على الـ Hub ويُرحّل مع الـ Sync. الاستبدال يعتمد على آخر رصيد محفوظ، مع حد أقصى للاستبدال أثناء الانقطاع يحدده الـ Tenant Admin لمنع الاستخدام المزدوج بين الفروع.
+- **FR-LY-11** تغيير رقم تليفون العميل: بيتعمل عميل جديد بالرقم الجديد، والرصيد بيتنقل بحركتين `LOYALTY_ADJUST` (سالب من القديم، وموجب للجديد)، بصلاحية المدير وسبب، ويتسجل في الـ Audit. العميل القديم بيتعلّم `merged_into` = الجديد ومابيتمسحش (D-38).
 - **FR-LY-10** تقارير: النقاط المكتسبة والمستبدلة والمنتهية، والعملاء الأكثر زيارة وإنفاقًا.
 
 برنامج الولاء يخضع لنفس قواعد السماح والتقييد: عند التقييد يتوقف الكسب والاستبدال الجديد، والأرصدة تبقى محفوظة كما هي.
@@ -249,13 +275,19 @@ Platform Owner ← Tenant (البراند) ← Branches (الفروع) ← Devic
 | استبدال نقاط الولاء | نعم | نعم | نعم | — | — |
 | نقل ودمج وتقسيم | نعم | نعم | نعم | نعم | — |
 | تحصيل وإغلاق الشيك | نعم | نعم | نعم | — | تحصيل الدليفري |
+| المرتجع (Refund) | نعم | نعم | بموافقة | — | — |
+| تحويل رصيد ولاء لرقم جديد | نعم | نعم | بموافقة | — | — |
 | فتح وقفل الوردية | نعم | نعم | نعم | — | — |
 | التقارير | الكل | فرعه | ورديته | — | — |
 | Audit log | نعم | فرعه | — | — | — |
 | إدارة الأجهزة والطابعات | نعم | نعم | — | — | — |
 
 - **بموافقة:** يظهر للمدير إشعار أو يُطلب منه إدخال PIN على نفس الجهاز (Manager Override)، ويُسجل الاثنان في الـ Audit log.
-- **حد الخصم:** الـ Tenant Admin يحدده من الإعدادات لكل دور (الكاشير والكابتن وغيرهما) كنسبة أو مبلغ أقصى، وأي خصم أكبر يحتاج Manager Override.
+- **حد الخصم:** الـ Tenant Admin يحدده من الإعدادات لكل دور (الكاشير والكابتن وغيرهما) بحدين: نسبة من الـ subtotal (`discount_limit_bp`) ومبلغ أقصى (`discount_limit_amount`). الخصم لازم يحقق الحدين مع بعض، والحد اللي قيمته `null` معناه مفيش حد. تعدّي أي حد منهم يحتاج Manager Override (D-13).
+- **الدخول (D-10):**
+  - مستخدمي المنصة في جدول منفصل `platform_users`.
+  - مستخدمي الإدارة (Tenant Admin وBranch Manager): إيميل unique على مستوى المنصة، والـ tenant بيتعرف من المستخدم. في الـ MVP كل مستخدم تبع tenant واحد.
+  - موظفين التشغيل (كاشير، كابتن، طيار): من غير إيميل، على جهاز مربوط بيختاروا اسمهم من قايمة موظفين الفرع وبعدين يكتبوا PIN من 4 لـ 6 أرقام. الجهاز بيحدد الـ tenant والفرع. الـ PIN متخزن بـ Argon2 ومش لازم يبقى unique. بعد 5 محاولات غلط الدخول بيتقفل دقيقة على المستخدم (D-34).
 - المستخدم يمكن أن يكون له أدوار مختلفة في فروع مختلفة.
 
 ## 5. المعمارية
@@ -266,15 +298,16 @@ TypeScript في كل الطبقات داخل Monorepo واحد، والفرع ي
 
 | الطبقة | الاختيار | السبب |
 | --- | --- | --- |
-| Backend | NestJS (TypeScript) | نفس منطق الحساب والتحقق يعمل في السيرفر والـ Hub |
+| Backend (السحابة) | NestJS (TypeScript) | نفس حزم الحساب والتحقق (`pricing`، `entitlements`، `sync`) تعمل في السيرفر والـ Hub |
 | Database | PostgreSQL + Row Level Security | علاقات مالية، وعزل بيانات العملاء على مستوى قاعدة البيانات |
 | ORM | Prisma | سرعة التطوير |
 | Cache وQueues | Redis + BullMQ | قفل الإضافات، إعادة محاولة الطباعة، الإشعارات |
 | Realtime | Socket.io + Redis adapter | Room لكل فرع ولكل Print Station |
 | تطبيقات الويب | React + Vite | الكاشير والكابتن (PWA) ولوحات الإدارة |
 | منيو الـ QR | Next.js | فتح سريع على موبايل العميل |
-| Windows | Electron + SQLite | Hub محلي وطباعة شبكة وUSB |
-| Android | Capacitor + Kotlin native | Hub محلي وطابعة مدمجة وشبكة |
+| منطق الـ Hub | `packages/hub-core` (TypeScript) | منطق واحد للـ Hub على Windows وAndroid، مش مربوط بطريقة نقل (D-01) |
+| Windows Hub | Electron + Fastify + Socket.io + better-sqlite3 + Drizzle ORM | Hub محلي خفيف وطباعة شبكة وUSB؛ مفيش Prisma ولا NestJS على الجهاز (D-03) |
+| Android Hub | Capacitor + `hub-core` في الـ WebView + Kotlin native plugins (سيرفر HTTP/WebSocket محلي، SQLite عبر Drizzle `sqlite-proxy`، SDK الطابعة، Foreground Service) | نفس الـ `hub-core` بدون نسخة Kotlin من المحرك (D-01، D-03) |
 | التخزين | Cloudflare R2 | اللوجوهات والصور |
 | الهوية البصرية | Tailwind + CSS variables | حقن ألوان المطعم وقت التشغيل |
 | المراقبة | Sentry | أخطاء الأجهزة عند العملاء |
@@ -289,28 +322,34 @@ apps/
   admin/        React — إدارة المطعم
   platform/     React — لوحة الـ Owner
   menu/         Next.js — منيو QR
-  desktop/      Electron — Windows Hub
-  android/      Capacitor — Android Hub/POS
+  desktop/      Electron — Windows Hub (Fastify + Drizzle فوق hub-core)
+  android/      Capacitor — Android Hub/POS (native plugins فوق hub-core)
 packages/
   pricing/      محرك الحساب (مشترك)
   entitlements/ منطق الصلاحيات والرخصة
   sync/         Outbox وتطبيق الأحداث
+  hub-core/     منطق الـ Hub (أوامر، ترقيم، طباعة، Outbox) — بيستخدم pricing وentitlements وsync وreceipts
   receipts/     قوالب الإيصالات
-  types/        DTOs مشتركة
+  types/        DTOs وأشكال الأحداث وenums الخدمات المشتركة
 ```
+
+Schema الـ Hub (Drizzle/SQLite) subset من schema السحابة (Prisma/Postgres). الـ DTOs وأشكال الأحداث جاية من `packages/types`، وفيه اختبار بيتأكد إن الأحداث متوافقة بين الاتنين (D-03).
 
 ### 5.3 Multi-tenancy
 
 - قاعدة بيانات واحدة، وكل جدول تشغيلي يحمل `tenant_id`.
 - تفعيل PostgreSQL RLS كطبقة حماية ثانية، بحيث لا ترجع قاعدة البيانات بيانات مطعم آخر حتى لو نُسي الفلتر في الكود.
-- المبالغ تُخزن Integer بالقروش.
+- المبالغ تُخزن Integer بأصغر وحدة لعملة الـ Tenant (minor units)، والعملة وعدد خاناتها على الـ Tenant (D-15).
+- `tenant_id` على كل جدول تشغيلي من غير استثناء، بما فيهم جداول الربط (D-09).
 
 ### 5.4 نموذج Hub-First
 
 - الجهاز الرئيسي في الفرع (Windows أو Android) هو الـ Hub: يشغّل سيرفر محلي وSQLite، ويستقبل أوردرات التابلتات على الـ WiFi، ويطبع، ويعمل Sync مع السحابة.
 - التابلتات تكلّم الـ Hub دائمًا، أونلاين وأوفلاين، فلا يوجد مساران مختلفان في الكود.
 - اكتشاف الـ Hub عند ربط الجهاز (IP ثابت محفوظ، مع mDNS كبديل).
-- لو جهاز الـ Hub نفسه توقف والإنترنت متاح، تتحول الأجهزة للسحابة مباشرة كـ Fallback.
+- **مفيش Fallback للسحابة (D-02):** الأجهزة ماتكتبش أوردرات على السحابة مباشرة أبدًا. لو الـ Hub وقع، الفرع يقف عن استقبال أوردرات جديدة لحد ما:
+  1. الـ Hub يرجع (Electron بيعيد تشغيل نفسه تلقائيًا وبيشتغل مع الويندوز)، أو
+  2. المدير يرقّي جهاز كاشير تاني يبقى Hub (**Promote to Hub**، المرحلة 2، تفاصيله في 7.7 وD-31): بتأكيد من المدير إن القديم واقف، والقديم بيتلغي في السحابة فورًا، والجديد بياخد `hub_epoch` جديد ويسحب آخر حالة من السحابة.
 
 &#91;embedded content: معمارية الفرع · Hub-First\]
 
@@ -320,12 +359,16 @@ packages/
 
 | البيانات | المرجع | الاتجاه |
 | --- | --- | --- |
-| الأوردرات، الترابيزات، الوردية، المدفوعات، الطباعة، Audit | الـ Hub | Hub ← السحابة |
-| المنيو، الأسعار، الإعدادات، المستخدمون، الاشتراكات | السحابة | السحابة ← Hub |
+| الأوردرات، حالة الترابيزات والـ Table Sessions، الوردية، المدفوعات، المرتجعات، الطباعة، Audit، حركات الولاء، الإتاحة اليومية (Out of Stock) | الـ Hub | Hub ← السحابة |
+| المنيو، الأسعار والإخفاء الدائم، الإعدادات، المستخدمون، تعريف الترابيزات (الرقم، السعة، السكشن، توكن الـ QR)، الاشتراكات، أرصدة الولاء | السحابة | السحابة ← Hub |
+| العملاء | مشترك بقاعدة دمج | الاتجاهين (D-06) |
 
-- **Outbox Pattern:** كل عملية تُسجل كحدث (uuid، device\_id، الترتيب، الوقت) وتُرسل بالترتيب، والسيرفر يطبقها Idempotent.
+- **Outbox Pattern:** كل عملية تُسجل كحدث (uuid، الترتيب، الوقت) في `outbox_events` على الـ Hub وتُرسل بالترتيب، والسحابة تسجلها في `sync_inbox` وتطبقها Idempotent (unique على `(hub_device_id, seq)` وعلى `event_id`) (D-08).
+- **last-write-wins** مسموح في استثنائين بس: الإتاحة اليومية وبيانات العميل (الاسم والعناوين). أي حاجة تانية ليها مرجع واحد (D-29).
+- **الإتاحة اليومية (D-05):** `branch_item_availability` مرجعها الـ Hub. تغييرها من الإدارة يوصل للـ Hub كأمر، والـ Hub يطبقه ويرجّعه حدث. التعارض على `is_out_of_stock` بيتحل بـ last-write-wins بالـ `updated_at`.
+- **العملاء (D-06):** التليفون بصيغة E.164، و`customers.id` و`loyalty_accounts.id` = `UUIDv5(tenant_id + phone)`، فلو فرعين عملوا نفس العميل أوفلاين يطلع نفس الـ ID ويندمجوا لوحدهم. الاسم last-write-wins بالـ `updated_at`، والعناوين بتتجمع (union) ومابتتمسحش. الرصيد عمره ما يتخزن كحقيقة على الـ Hub. تغيير الرقم بيعمل عميل جديد والقديم بيتعلّم `merged_into` (D-38).
 - **client\_uuid** على كل أوردر يمنع التكرار عند إعادة الإرسال.
-- **ترقيم الأوردرات:** الـ Hub يعطي الرقم اليومي للفرع.
+- **ترقيم الأوردرات:** الـ Hub يعطي الرقم اليومي للفرع، ويبدأ من 1 مع كل `business_date` جديد. الرقم للعرض بس ومش مفتاح؛ القيد unique على `(hub_device_id, business_date, daily_number)`، والـ Hub المترقّي بيكمل من آخر رقم السحابة عارفاه + 500 (D-31). `business_date` بيتحسب على الـ Hub من `timezone` و`business_day_start` بتوع الفرع (D-04).
 - **الوقت:** ساعة الـ Hub هي المرجع داخل الفرع.
 - **تعديلات الإدارة أثناء انقطاع الفرع** تنتظر حتى يعود الاتصال ثم تنزل للـ Hub.
 - **مؤشر حالة** دائم على الكاشير والتابلت: متصل، أوفلاين، عدد الأحداث المنتظرة.
@@ -334,21 +377,22 @@ packages/
 
 - السيرفر يصدر للـ Hub رخصة موقّعة (Signed License Token) فيها الخدمات وتواريخ انتهائها ومدة السماح.
 - الـ Hub يطبق التقييد محليًا بالتواريخ الموجودة في الرخصة.
-- بعد أقصى مدة Offline (افتراضي 72 ساعة) يمنع الـ Hub الأوردرات الجديدة حتى يتصل، مع السماح بقفل الأوردرات المفتوحة.
+- بعد أقصى مدة Offline (افتراضي 72 ساعة على المنصة، مع Override لكل Tenant، D-21) يمنع الـ Hub الأوردرات الجديدة حتى يتصل، مع السماح بقفل الأوردرات المفتوحة.
+- إيقاف الـ Tenant بيلغي الرخصة مع أول Sync (D-22).
 
 ### 5.7 الطباعة
 
 - القالب HTML يتحول لصورة بعرض 576 بكسل (80 مم) أو 384 (58 مم) ويرسل ESC/POS Raster.
 - Windows: شبكة (TCP 9100) وUSB عبر الـ Spooler بوضع Raw.
-- Android: SDK الطابعة المدمجة وشبكة TCP.
-- كل طباعة Print Job: إنشاء، إرسال، ACK، إعادة محاولة، ثم تنبيه عند الفشل.
+- Android (المرحلة 2): SDK الطابعة المدمجة وشبكة TCP وBluetooth (D-26).
+- كل طباعة Print Job: إنشاء، إرسال، ACK، إعادة محاولة، ثم تنبيه عند الفشل. تعريف الـ ACK في FR-PR-04 (D-25).
 
 ### 5.8 الأجهزة المدعومة
 
 | الجهاز | Hub محلي | الطباعة | المرحلة |
 | --- | --- | --- | --- |
 | Windows | نعم (Electron) | شبكة + USB | MVP |
-| POS Android | نعم (Kotlin native) | مدمجة + شبكة | المرحلة 2 |
+| POS Android | نعم (Capacitor + hub-core) | مدمجة + شبكة | المرحلة 2 |
 | تابلت Android | نعم | شبكة + Bluetooth | المرحلة 2 |
 | iPad | لا (كاشير أو كابتن فقط) | شبكة | المرحلة 3 |
 | تابلت الكابتن | لا | — | MVP |
@@ -356,112 +400,173 @@ packages/
 ### 5.9 ربط الأجهزة
 
 - الجهاز الجديد يُربط بكود Pairing من لوحة الإدارة، ويأخذ Device Token ودورًا (Hub، كاشير، كابتن).
-- عدد الأجهزة محكوم بالباقة والإضافات.
+- عدد الأجهزة محكوم بالباقة والإضافات حسب النوع: `CASHIER` (والـ Hub منهم) و`CAPTAIN` (D-19). الحصص لكل فرع، وكل جهاز إضافي شاغل خانة سجل `EXTRA_CASHIER` أو `EXTRA_CAPTAIN` مربوط بفرعه (D-18، D-32).
+- ترقية جهاز كاشير لـ Hub (Promote to Hub) من لوحة الإدارة، المرحلة 2 (D-02).
 - إلغاء ربط جهاز من اللوحة يوقفه فورًا.
 
 ## 6. الـ Data Model
 
-كل الجداول التشغيلية تحمل `tenant_id`، والمفاتيح UUID (تُولّد على الجهاز للأوردرات لتعمل أوفلاين)، والمبالغ Integer بالقروش، والحذف ناعم (`deleted_at`).
+كل الجداول التشغيلية تحمل `tenant_id` من غير استثناء، بما فيهم جداول الربط (D-09)، والمفاتيح UUID (تُولّد على الجهاز للأوردرات لتعمل أوفلاين)، والمبالغ Integer بأصغر وحدة للعملة (minor units)، والحذف ناعم (`deleted_at`). الحقول اللي ظاهرة للعميل أو الموظفين ليها `_ar` و`_en` (D-27).
 
 ### 6.1 المنصة والاشتراكات
 
 ```
-plans               id, name, price, duration_days, included_branches,
-                    included_devices, features[]
-addon_catalog       id, code (BRANCH|DELIVERY|QR|DEVICE|REPORTS|LOYALTY),
-                    name, price, duration_days, is_quantity_based
+platform_users      id, name, email, password_hash                      -- D-10
+plans               id, name, price, currency_code, duration_days,       -- D-37
+                    included_branches,
+                    included_cashiers, included_captains (لكل فرع),
+                    features[]                                          -- D-19، D-32
+addon_catalog       id, code (AddonCode: EXTRA_BRANCH|EXTRA_CASHIER|
+                    EXTRA_CAPTAIN|DELIVERY|QR_ORDERING|LOYALTY|
+                    ADVANCED_REPORTS), name, price, currency_code,
+                    duration_days, is_quantity_based                    -- D-20، D-37
 platform_settings   default_grace_days, max_offline_hours
 
 tenants             id, name, slug, logo_url, primary_color, secondary_color,
-                    status, created_at
+                    currency_code, currency_minor_digits,               -- D-15
+                    max_offline_hours_override,                         -- D-21
+                    status (ACTIVE|SUSPENDED), created_at               -- D-22
 tenant_subscriptions id, tenant_id, plan_id, starts_at, ends_at,
                     grace_days_override, status_cached
 tenant_addons       id, tenant_id, addon_code, quantity, starts_at, ends_at,
+                    branch_id (للأجهزة الإضافية: الفرع اللي الخانة تبعه),
+                    target_type (BRANCH|DEVICE, nullable), target_id,   -- D-18، D-32
                     grace_days_override, status_cached
 feature_toggles     id, tenant_id, branch_id (nullable), feature, enabled
 subscription_events id, tenant_id, type, payload, actor_id, created_at
+subscription_payments id, tenant_id, amount, currency_code, method,
+                    reference, paid_at, recorded_by,
+                    covers (plan/addon ids)                             -- D-37
+notifications       id, tenant_id (nullable للمنصة), audience, type,
+                    payload, created_at, read_at                        -- D-22
 ```
+
+- سجلات `EXTRA_BRANCH` و`EXTRA_CASHIER` و`EXTRA_CAPTAIN` دايمًا `quantity = 1` ومربوطة بـ `target_id` (D-18). سجلات الأجهزة كمان مربوطة بـ `branch_id` (D-32).
+- اشتراكات المنصة بعملة ثابتة (الـ MVP جنيه مصري) ومفيش تحويل عملات؛ دي غير عملة الـ Tenant (D-37).
 
 ### 6.2 الفروع والمستخدمين والأجهزة
 
 ```
-branches            id, tenant_id, name, address, phone, tax_reg_no,
+branches            id, tenant_id, name, is_primary, address, phone,    -- D-18
+                    tax_reg_no, timezone, business_day_start,           -- D-04
                     service_rate_bp, tax_rate_bp, tax_on_service,
+                    tax_on_delivery,                                    -- D-11
                     service_applies_to[], calc_order[],
-                    delivery_fee_mode, delivery_fee_flat, receipt_footer
-delivery_zones      id, branch_id, name, fee
-users               id, tenant_id, name, phone, email, pin_hash, password_hash
+                    delivery_fee_mode, delivery_fee_flat, receipt_footer,
+                    kitchen_ticket_language, receipt_language,          -- D-27
+                    current_hub_device_id, hub_epoch                    -- D-31
+delivery_zones      id, tenant_id, branch_id, name_ar, name_en, fee
+users               id, tenant_id, name, phone, email (nullable,
+                    unique على المنصة), pin_hash (Argon2، مش unique),
+                    password_hash, failed_pin_attempts, locked_until    -- D-10، D-34
 roles               id, tenant_id, name, permissions[],
-                    discount_limit_bp, discount_limit_amount
-user_branch_roles   user_id, branch_id, role_id
-devices             id, branch_id, name, role (HUB|CASHIER|CAPTAIN),
-                    platform, token_hash, last_seen_at
-printers            id, branch_id, name, connection_type, address,
-                    paper_width, copies, station_device_id
-printer_routes      printer_id, category_id
+                    discount_limit_bp, discount_limit_amount  (null = بدون حد)
+user_branch_roles   tenant_id, user_id, branch_id, role_id
+devices             id, tenant_id, branch_id, name,
+                    role (HUB|CASHIER|CAPTAIN), platform, token_hash,
+                    hub_epoch (nullable), drain_state (nullable),
+                    last_seen_at, revoked_at                            -- D-31
+printers            id, tenant_id, branch_id, name, connection_type, address,
+                    paper_width, copies, station_device_id,
+                    supports_status                                     -- D-25
+printer_routes      tenant_id, printer_id, category_id
 ```
+
+- الدخول على الجهاز: اختيار الاسم من قايمة موظفين الفرع ثم الـ PIN. القفل على المستخدم (D-34).
+- جهاز الـ `HUB` بيتحسب من حصة الـ `CASHIER` (D-19).
 
 ### 6.3 المنيو
 
 ```
 categories          id, tenant_id, name_ar, name_en, sort, image_url,
                     earns_loyalty
-items               id, tenant_id, category_id, name_ar, name_en, description,
+items               id, tenant_id, category_id, name_ar, name_en,
+                    description_ar, description_en,                     -- D-27
                     price, image_url, order_types[], earns_loyalty
-item_branch_overrides item_id, branch_id, price, is_hidden, is_out_of_stock
-modifier_groups     id, tenant_id, name, min_select, max_select, required
-modifiers           id, group_id, name, price
-item_modifier_groups item_id, group_id, sort
+item_branch_overrides tenant_id, item_id, branch_id, price, is_hidden   -- سحابة
+branch_item_availability tenant_id, branch_id, item_id,
+                    is_out_of_stock, updated_at, updated_by             -- Hub، D-05
+modifier_groups     id, tenant_id, name_ar, name_en, min_select,
+                    max_select, required
+modifiers           id, tenant_id, group_id, name_ar, name_en, price
+item_modifier_groups tenant_id, item_id, group_id, sort
 ```
 
 ### 6.4 الصالة والأوردرات
 
 ```
-table_sections      id, branch_id, name
-tables              id, branch_id, section_id, number, capacity, status
-table_qr_tokens     id, table_id, token, active, created_at
-table_sessions      id, branch_id, table_id, opened_by, opened_at, closed_at,
-                    status, merged_into_id
+table_sections      id, tenant_id, branch_id, name_ar, name_en
+tables              id, tenant_id, branch_id, section_id, number, capacity
+                    -- التعريف من السحابة؛ الحالة من الـ Hub (D-07)
+table_qr_tokens     id, tenant_id, table_id, token, active, created_at
+table_sessions      id, tenant_id, branch_id, table_id, opened_by, opened_at,
+                    closed_at, status, merged_into_id
 orders              id (client uuid), tenant_id, branch_id, device_id,
-                    daily_number, type (DINE_IN|TAKEAWAY|DELIVERY),
+                    hub_device_id, business_date, daily_number,         -- D-04، D-31
+                    -- unique (hub_device_id, business_date, daily_number)
+                    recovered_from_drain (bool),                        -- D-31
+                    type (DINE_IN|TAKEAWAY|DELIVERY),
                     source (CAPTAIN|CASHIER|QR), status, table_session_id,
+                    split_from_order_id (nullable),                     -- D-12
                     customer_id, driver_id, delivery_zone_id,
-                    subtotal, discount, service, tax, delivery_fee, total,
+                    subtotal, discount, loyalty_discount,               -- D-11
+                    service, tax, delivery_fee, total, breakdown,
                     rates_snapshot, created_by, created_at
-order_items         id, order_id, item_id, name_snapshot, unit_price,
-                    qty, notes, status (ACTIVE|VOIDED), void_reason,
-                    voided_by, sent_at
-order_item_modifiers id, order_item_id, modifier_id, name_snapshot, price
-payments            id, order_id, shift_id, method, amount, reference
-customers           id, tenant_id, phone, name, addresses[]
-service_requests    id, table_id, type (WAITER|BILL), status,
+order_items         id, tenant_id, order_id, item_id, name_snapshot,
+                    unit_price, qty, notes, status (ACTIVE|VOIDED),
+                    void_reason, voided_by, sent_at
+order_item_modifiers id, tenant_id, order_item_id, modifier_id,
+                    name_snapshot, price
+payments            id, tenant_id, order_id, shift_id, method, amount,
+                    tendered (للكاش بس), reference                      -- D-14
+refunds             id, tenant_id, branch_id, order_id, shift_id,
+                    business_date, kind (FULL|ITEMS), amount, reason,
+                    user_id, approved_by, created_at                    -- D-14، D-33
+refund_payments     id, tenant_id, refund_id, method, amount
+                    -- كل طريقة <= المدفوع بيها في الأوردر الأصلي ناقص المرتجع قبل كده
+refund_items        id, tenant_id, refund_id, order_item_id, qty, amount
+customers           id (UUIDv5(tenant_id + phone)), tenant_id,
+                    phone (E.164), name, addresses[], updated_at,
+                    merged_into (nullable)                              -- D-06، D-38
+service_requests    id, tenant_id, table_id, type (WAITER|BILL), status,
                     created_at, handled_by, handled_at
 ```
 
 ### 6.5 الوردية والطباعة والسجل والضرائب
 
 ```
-shifts              id, branch_id, device_id, opened_by, opening_cash,
-                    closed_by, counted_cash, expected_cash, difference,
-                    opened_at, closed_at
-cash_movements      id, shift_id, type, amount, reason, user_id
-print_jobs          id, branch_id, order_id, printer_id, kind, payload_ref,
-                    status, attempts, acked_at
-audit_logs          id, tenant_id, branch_id, user_id, device_id, action,
-                    entity, entity_id, before, after, reason, created_at
-sync_events         id, device_id, seq, type, payload, applied_at
+shifts              id, tenant_id, branch_id, device_id,
+                    kind (NORMAL|RECOVERED), opened_by,                 -- D-31
+                    opening_cash, closed_by, counted_cash, expected_cash,
+                    difference, opened_at, closed_at,
+                    settlement_status (NEEDS_SETTLEMENT|SETTLED, للمستردة بس),
+                    settled_cash, settled_by, settled_at, settlement_reason
+                    -- RECOVERED: السيستم بيفتحها ويقفلها، opened_by وopening_cash وcounted_cash فاضيين (D-31)
+cash_movements      id, tenant_id, shift_id, type, amount, reason, user_id
+print_jobs          id, tenant_id, branch_id, order_id, printer_id, kind,
+                    payload_ref, status, attempts, acked_at,
+                    reprint_of (nullable)
+audit_logs          id, tenant_id, branch_id, user_id, approved_by,       -- D-24
+                    device_id, action, entity, entity_id, before, after,
+                    reason, created_at
+
+-- على الـ Hub (SQLite)                                                  -- D-08
+outbox_events       id (uuid), seq bigint, type, payload, created_at, sent_at
+-- على السحابة (Postgres)
+sync_inbox          tenant_id, hub_device_id, seq, event_id (unique), type,
+                    received_at, applied_at
+                    unique (hub_device_id, seq)
 
 loyalty_settings    tenant_id, earn_amount, earn_points, point_value,
                     earn_base, min_redeem_points, expiry_days,
                     offline_redeem_limit
 loyalty_tiers       id, tenant_id, name, min_spend, earn_multiplier_bp
-loyalty_accounts    id, tenant_id, customer_id, balance, lifetime_spend,
-                    tier_id
-loyalty_transactions id, account_id, order_id, branch_id,
+loyalty_accounts    id (UUIDv5(tenant_id + phone)), tenant_id, customer_id,
+                    balance (محسوب على السحابة من loyalty_transactions),
+                    lifetime_spend, tier_id                             -- D-06
+loyalty_transactions id, tenant_id, account_id, order_id, branch_id,
                     type (EARN|REDEEM|EXPIRE|REVERSE|ADJUST),
                     points, user_id, created_at
-subscription_payments id, tenant_id, amount, method, reference,
-                    paid_at, recorded_by, covers (plan/addon ids)
 ```
 
 النسب تُخزن بالـ basis points (`_bp`)، مثلًا 14% = 1400، لتجنب الكسور.
@@ -473,7 +578,7 @@ subscription_payments id, tenant_id, amount, method, reference,
 1. الكابتن يختار الترابيزة؛ لو فاضية يُفتح Table Session.
 2. يختار الأصناف والـ Modifiers والملاحظات، والتابلت يحسب الإجمالي بنفس محرك الحساب.
 3. يضغط إرسال: التابلت يولد `client_uuid` ويرسل للـ Hub على الشبكة المحلية.
-4. الـ Hub يحفظ الأوردر، يعطيه رقمًا يوميًا، ويقسّم الأصناف على الطابعات حسب القسم.
+4. الـ Hub يتحقق من الرخصة (`can()`) ويحفظ الأوردر، يحسب `business_date` ويعطيه رقمًا يوميًا، ويقسّم الأصناف على الطابعات حسب القسم.
 5. الـ Hub يطبع التيكتات وينتظر ACK من كل طابعة؛ أي فشل يظهر تنبيهًا على الكاشير والتابلت.
 6. الأوردر يظهر على الكاشير، ويُضاف حدث للـ Outbox ويُرفع للسحابة.
 7. جولات إضافية تُضاف على نفس الـ Session وتطبع تيكت "إضافة".
@@ -505,16 +610,17 @@ Active ──(ends_at)──► Grace ──(ends_at + grace_days)──► Rest
 
 - Active: الخدمة تعمل.
 - Grace: الخدمة تعمل + بانر وعداد عند الإدارة والكاشير + إشعارات.
-- Restricted: لا أوردرات جديدة على الخدمة، قراءة البيانات متاحة، الأوردرات المفتوحة تُستكمل وتُقفل عادي، ولا يمكن فتح أو إضافة أوردرات جديدة.
+- Restricted: لا أوردرات جديدة على الخدمة (ولا جولات جديدة على ترابيزة مفتوحة)، قراءة البيانات متاحة، الأوردرات المفتوحة تُدفع وتتقسم وتتنقل وتتدمج وتُقفل عادي (D-17).
+- Suspended (على مستوى الـ Tenant كله، يدوي): كل حاجة تقف فورًا من غير سماح، والإدارة قراءة بس (D-22).
 - التجديد في أي وقت يرجعها Active فورًا ويُحدث الرخصة على الـ Hub.
 
 ### 7.5 الوردية
 
 1. الكاشير يفتح الوردية برصيد افتتاحي.
-2. كل دفع وحركة نقدية تُربط بالوردية.
+2. كل دفع وحركة نقدية ومرتجع يُربط بالوردية الحالية (المرتجع حتى لو الأوردر من وردية قديمة، ويتحسب على `business_date` بتاعه هو، D-14، D-33).
 3. عند القفل: لا يُسمح بالقفل مع وجود أوردرات مفتوحة إلا بنقلها للوردية التالية بموافقة المدير.
 4. الكاشير يدخل الكاش الفعلي، والنظام يحسب المتوقع والفرق.
-5. يُطبع تقرير Z ويُرفع للسحابة.
+5. يُطبع تقرير Z ويُرفع للسحابة. التقارير اليومية بتتجمع بالـ `business_date` (D-04).
 
 ### 7.6 انقطاع الإنترنت
 
@@ -524,6 +630,22 @@ Active ──(ends_at)──► Grace ──(ends_at + grace_days)──► Rest
 4. الـ QR Ordering يُقفل مؤقتًا.
 5. عند عودة الإنترنت: رفع الأحداث بالترتيب، ثم تنزيل أي تغييرات في المنيو والإعدادات، ثم تحديث أرصدة الولاء.
 6. لو تجاوز الانقطاع أقصى مدة Offline: لا أوردرات جديدة حتى يعود الاتصال، مع السماح بقفل المفتوح.
+
+### 7.7 وقوع الـ Hub
+
+1. التابلتات والكاشيرات التانية تظهر "الـ Hub مش متاح" ومابتكتبش على السحابة (D-02).
+2. Electron بيحاول يعيد تشغيل الـ Hub تلقائيًا.
+3. لو الجهاز مش راجع: المدير يعمل **Promote to Hub** لجهاز كاشير تاني من لوحة الإدارة (المرحلة 2)، بعد ما يأكّد إن الـ Hub القديم واقف (D-31).
+4. السحابة بتلغي الـ Hub القديم فورًا، والجهاز الجديد بياخد `hub_epoch` جديد، ويسحب آخر حالة، ويكمل الترقيم من آخر رقم السحابة عارفاه في نفس الـ `business_date` + 500. بيتسجل `HUB_PROMOTED` في الـ Audit.
+5. الـ Hub القديم مايقدرش يستقبل أوامر جديدة من الأجهزة بعد الترقية. أول ما يتصل بالسحابة بيعرف إنه اتلغى، وبيدخل وضع **تصريف (drain)** فورًا: يرفض أي أمر جديد، ويرفع الأحداث المتبقية في الـ outbox، وبعدين يطلب re-pair. الـ outbox بتاعه مابيتلغيش.
+6. السحابة **ماترفضش أبدًا** حدث جاي من epoch قديم، لأنه حقيقة حصلت فعلًا (أكل اتقدّم وفلوس اتدفعت). الحدث بيتقبل ويتطبق عادي (idempotent بالـ event id). لو حصل بعد وقت الترقية، الأوردر بيتعلّم `recovered_from_drain = true`.
+7. إيرادات ومدفوعات الأحداث دي بتدخل التقارير، وبتتنسب لوردية الـ Hub القديم، أو لوردية "مستردة" (`shifts.kind = RECOVERED`) لو مالهاش وردية مفتوحة. قواعد الوردية المستردة:
+   - السيستم هو اللي بيفتحها ويقفلها لوحده، ومابتتفتحش من أي جهاز.
+   - مالهاش رصيد افتتاحي ولا جرد كاش، ومابتأثرش على الكاش المتوقع في أي وردية عادية.
+   - بتظهر عند المدير بحالة "محتاجة تسوية". المدير بيدخل الكاش اللي استلمه فعلًا ويكتب سبب (إجباري)، والفرق بين المستلم والمتوقع منها (مدفوعات الكاش ناقص المرتجعات الكاش اللي جواها) بيتسجل في الـ Audit (`RECOVERED_SHIFT_SETTLED`)، والحالة بتبقى "اتسوّت".
+   - التقارير بتعرضها في سطر منفصل باسم "مستردة".
+8. الأوردرات المستردة بتظهر في لوحة الإدارة في قايمة "أوردرات مستردة من Hub متوقف" علشان المدير يراجعها ويقفل المفتوح منها، وبيتسجل `HUB_DRAINED` في الـ Audit. القايمة بتعرض الجهاز جنب رقم الأوردر، لأن الرقم اليومي ممكن يتكرر بين الـ Hub القديم والجديد، وده مش مشكلة لأن القيد على `(hub_device_id, business_date, daily_number)`.
+9. اختبار إجباري: Hub اتقطع عن النت، واتعمل Hub تاني بدله، والقديم سجّل 10 أوردرات وهو مقطوع، وبعدين النت رجع ← الـ 10 أوردرات موجودين ومتعلّمين، ومفيش أي فلوس ناقصة في التقارير.
 
 ## 8. المتطلبات غير الوظيفية
 
@@ -554,8 +676,8 @@ Active ──(ends_at)──► Grace ──(ends_at + grace_days)──► Rest
 | المرحلة | المحتوى | شرط الانتقال |
 | --- | --- | --- |
 | 0. الأساس | Monorepo، Auth، Multi-tenancy + RLS، Entitlements والرخصة، لوحة المنصة مع التحصيل اليدوي | منح وتقييد إضافة يعمل end-to-end |
-| 1. MVP | المنيو والـ Modifiers، Dine-in وTakeaway، تابلت الكابتن، Windows Hub + Offline Sync، الطباعة، الوردية وZ، Branding، Audit، برنامج الولاء، تقارير أساسية | تشغيل مطعم تجريبي أسبوعين بدون فقد أوردر |
-| 2. الإضافات | QR Ordering والنداءات وPDF الأكواد، Delivery، الفروع الإضافية، Android Hub وPOS | أول 5 عملاء مدفوعين |
+| 1. MVP | المنيو والـ Modifiers، Dine-in وTakeaway، تابلت الكابتن، Windows Hub + Offline Sync، الطباعة، الوردية وZ، المرتجع، Branding، Audit، برنامج الولاء، تقارير أساسية | تشغيل مطعم تجريبي أسبوعين بدون فقد أوردر |
+| 2. الإضافات | QR Ordering والنداءات وPDF الأكواد، Delivery، الفروع والأجهزة الإضافية، Android Hub وPOS وBluetooth، Promote to Hub | أول 5 عملاء مدفوعين |
 | 3. التوسع | تقارير متقدمة، iPad | حسب طلب السوق |
 
 ### 9.2 المخاطر
@@ -563,6 +685,7 @@ Active ──(ends_at)──► Grace ──(ends_at + grace_days)──► Rest
 | الخطر | الأثر | التخفيف |
 | --- | --- | --- |
 | تعقيد الـ Sync | تكرار أو فقد أوردرات | ملكية واضحة للبيانات، Outbox، Idempotency، اختبارات انقطاع مقصودة |
+| وقوع جهاز الـ Hub | الفرع يقف عن الأوردرات | إعادة تشغيل تلقائي، Promote to Hub، نسخة محلية يومية (D-02) |
 | تنوع الطابعات | تيكتات لا تطلع أو عربي مكسور | طباعة Raster، شراء أشهر طابعتين للاختبار من الأسبوع الأول |
 | تجاوز الاشتراك بفصل النت | خسارة إيراد | رخصة موقّعة وأقصى مدة Offline |
 | استبدال نقاط الولاء مرتين أوفلاين | خسارة على المطعم | حد أقصى للاستبدال أثناء الانقطاع ومطابقة عند الـ Sync |
@@ -573,6 +696,8 @@ Active ──(ends_at)──► Grace ──(ends_at + grace_days)──► Rest
 - [ ] تسعير الباقة الأساسية وكل إضافة (مؤجل لنهاية المشروع).
 - [x] الباقة الأساسية تشمل كاشير واحد و2 كابتن.
 - [x] تحصيل الاشتراكات يدوي.
+- [x] القرارات المعمارية بعد المراجعتين: `docs/DECISIONS.md` (D-01 → D-38).
+- [x] البقشيش والفاتورة الإلكترونية خارج النطاق (D-14، D-16).
 - [ ] ماركة أجهزة POS Android المستهدفة أولًا.
 - [ ] المطعم التجريبي الأول للمرحلة 1.
 - [ ] اسم المنتج والهوية.

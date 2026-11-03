@@ -24,13 +24,18 @@ description: UI rules for the POS apps — cashier and captain tablet (touch-fir
 - Numbers and money via `Intl.NumberFormat` and the shared `formatMoney()`; prices keep Western digits unless the tenant chooses otherwise.
 
 ## Cashier / captain (touch)
+- Login (D-34): the device shows the branch's staff list; the user picks their name, then enters the PIN on a PinPad. After 5 wrong PINs show the user is locked for one minute (the lock follows the user, not the device).
 - Minimum touch target 48 px; primary actions at the bottom within thumb reach on tablets.
 - Ordering a common item with modifiers must take ≤ 3 taps after choosing the table.
 - Every destructive action (void, discount, close) shows the reason/approval step defined in the audit-log skill.
-- Persistent status bar: connection (online/offline/pending sync count), shift state, current user, grace-period banner when applicable.
+- Persistent status bar: connection (online/offline/Hub unavailable/pending sync count), shift state, current user, grace-period banner when applicable.
 - Alerts that must not be missed (failed print, waiter call, bill request, pending QR order) are sticky with sound until acknowledged.
 - Optimistic UI only after the Hub accepted the command; show sending/sent states per order.
 - Works at 1024×768 tablet landscape and 1366×768 POS screens.
+
+## Admin specifics
+- Branch settings: turning on `tax_on_delivery` reorders the calculation steps automatically (via `normalizeCalcOrder` from `pricing`) and shows a message explaining why (D-36).
+- "أوردرات مستردة من Hub متوقف" list for the manager to review and close recovered orders (D-31).
 
 ## QR menu
 - Next.js with SSR/ISR, images optimized, target < 2 s on 4G.
