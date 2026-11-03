@@ -70,10 +70,13 @@ Earn is recorded locally and synced. Redeem uses the last known balance, capped 
 - Device count limits come from entitlements, per type (the Hub counts as the cashier).
 - **Promote to Hub (phase 2, D-02, D-31):**
   1. A manager promotes a paired cashier device after **confirming the old Hub is down**.
-  2. The cloud revokes the old Hub immediately and issues a new `hub_epoch` (stored on the branch and the device). Commands and events carry the epoch; the cloud rejects new orders from a stale epoch.
+  2. The cloud revokes the old Hub immediately and issues a new `hub_epoch` (stored on the branch and the device). Events carry the epoch of the Hub that produced them.
   3. The new Hub pulls the latest state and continues numbering from the last number the cloud knows for the same `business_date` **+ 500**, so the kitchen never sees a repeated number. Audited as `HUB_PROMOTED`.
-  4. If the old Hub comes back it enters **drain** mode: rejects every new order, uploads its remaining outbox (idempotent by event id — the outbox is never discarded), then asks to be re-paired.
-  5. Open orders that arrive through draining are flagged `recovered_from_drain` and listed in the admin under "أوردرات مستردة من Hub متوقف" for the manager to review and close. Audited as `HUB_DRAINED`.
+  4. After promotion the old Hub can no longer accept commands from devices. As soon as it reaches the cloud it learns it was revoked and enters **drain** mode immediately: rejects every new command, uploads its remaining outbox (the outbox is never discarded), then asks to be re-paired.
+  5. **The cloud never rejects an event from a stale epoch.** Those events are facts (food was served, money was paid). They are accepted and applied normally (idempotent by event id). Orders whose events happened after the promotion time are flagged `recovered_from_drain = true`.
+  6. Their revenue and payments go into reports, attributed to the old Hub's shift, or to a recovered shift (`shifts.kind = RECOVERED`) if they have no open shift.
+  7. Recovered orders are listed in the admin under "أوردرات مستردة من Hub متوقف" for the manager to review and close the open ones. Audited as `HUB_DRAINED`.
+  8. Duplicate daily numbers between the old and new Hub are **not** an error: uniqueness is `(hub_device_id, business_date, daily_number)`. The recovered list shows the device next to the order number.
 
 ## Testing (required)
 - Duplicate submission → one order.
@@ -84,6 +87,7 @@ Earn is recorded locally and synced. Redeem uses the last known balance, capped 
 - Same customer created offline in two branches → one customer, addresses merged.
 - Orders across `business_day_start` → correct `business_date` and number reset.
 - Event contract test between the Hub (Drizzle) and the cloud (Prisma).
-- Promote to Hub: no duplicate daily numbers; the old Hub drains its outbox without duplicates and rejects new orders; recovered open orders are listed.
+- Promote to Hub: the old Hub drains its outbox without duplicate events and rejects new commands; nothing from a stale epoch is rejected by the cloud.
+- **Required scenario (D-31):** a Hub loses internet, another device is promoted, the old Hub records 10 orders while disconnected, then the internet returns → all 10 orders exist in the cloud, are flagged `recovered_from_drain`, appear in the recovered list, and report/shift totals include every payment (no money missing).
 - Customer phone change: balance moved exactly, old customer `merged_into` the new one.
 Write these as automated integration tests (a fake cloud and a Hub process), not only manual checks.
