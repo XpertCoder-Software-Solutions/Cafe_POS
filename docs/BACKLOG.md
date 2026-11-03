@@ -8,7 +8,7 @@
 
 | | ID | المهمة | المتطلبات | يعتمد على | تعتبر منتهية لما |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | T-01 | إعداد الـ Monorepo: pnpm + Turborepo، TS strict، ESLint، Prettier، Vitest، CI (GitHub Actions)، وسكريبتات build وtest وlint وtypecheck | SRS 5.2، D-28 | — | pnpm build وpnpm test وpnpm lint وpnpm typecheck يعدّوا محليًا وعلى CI |
+| [x] | T-01 | إعداد الـ Monorepo: pnpm + Turborepo، TS strict، ESLint، Prettier، Vitest، CI (GitHub Actions)، وسكريبتات build وtest وlint وtypecheck | SRS 5.2، D-28 | — | pnpm build وpnpm test وpnpm lint وpnpm typecheck يعدّوا محليًا وعلى CI |
 | [ ] | T-02 | NestJS skeleton + Prisma + Docker Compose (Postgres، Redis) + packages/types + health check | SRS 5.1 | T-01 | docker compose up يشغّل الـ API و/health يرد 200 |
 | [ ] | T-03 | Schema المنصة والاشتراكات (platform_users، عملة الـ Tenant، عملة ثابتة لاشتراكات المنصة، سجل لكل فرع/جهاز إضافي مربوط بفرع، حد الأجهزة بالنوع لكل فرع، الإشعارات) + migrations + seed | SRS 6.1، D-10، D-15، D-18 → D-22، D-32، D-37 | T-02 | الجداول اتعملت والـ seed فيه باقة وإضافات تجريبية بالأكواد الموحدة وبالجنيه المصري |
 | [ ] | T-04 | Multi-tenancy: tenant context في Prisma + سياسات RLS + helper لاختبارات العزل + فحص CI | SRS 5.3 | T-03 | اختبار يثبت إن Tenant مايقدرش يقرأ بيانات Tenant تاني حتى بدون فلتر |
