@@ -25,3 +25,8 @@ Electron + SQLite (Windows Hub) · Capacitor + Kotlin (Android)
 - الاختبارات مع الكود، وإجبارية في pricing وsync وentitlements.
 - pnpm test وpnpm lint وpnpm typecheck لازم يعدّوا قبل ما تقول إن المهمة خلصت.
 - لو متطلب مش واضح في SRS: اسأل، ماتخمّنش.
+
+## الملفات المرجعية
+- المتطلبات: docs/SRS.md
+- المهام بالترتيب: docs/BACKLOG.md
+- لتنفيذ أي مهمة استخدم skill implement-task، وحمّل الـ skills المذكورة في الـ Skill map بتاعها.
