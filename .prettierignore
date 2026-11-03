@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+coverage
+.turbo
+pnpm-lock.yaml
+# Hand-written Arabic docs and skills: don't reflow them.
+docs
+.claude
+CLAUDE.md
